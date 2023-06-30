@@ -5,6 +5,7 @@ import (
     "github.com/vishvananda/netlink"
     "net"
     "os/exec"
+    "strings"
     "vpnagent/base"
 )
 
@@ -54,7 +55,7 @@ func SetRoutes(ServerIP string, SplitInclude, SplitExclude *[]string) error {
     route := netlink.Route{LinkIndex: localInterfaceIndex, Dst: dst, Gw: gateway}
     err := netlink.RouteAdd(&route)
     if err != nil {
-        return routingError(dst)
+        return routingError(dst, err)
     }
 
     if len(*SplitInclude) == 0 {
@@ -65,7 +66,11 @@ func SetRoutes(ServerIP string, SplitInclude, SplitExclude *[]string) error {
         route = netlink.Route{LinkIndex: ifaceIndex, Dst: dst, Priority: 6}
         err = netlink.RouteAdd(&route)
         if err != nil {
-            return routingError(dst)
+            if strings.Contains(err.Error(), "already exists") {
+                continue
+            } else {
+                return routingError(dst, err)
+            }
         }
     }
 
@@ -76,7 +81,7 @@ func SetRoutes(ServerIP string, SplitInclude, SplitExclude *[]string) error {
             route = netlink.Route{LinkIndex: localInterfaceIndex, Dst: dst, Gw: gateway, Priority: 5}
             err = netlink.RouteAdd(&route)
             if err != nil {
-                return routingError(dst)
+                return routingError(dst, err)
             }
         }
     }
@@ -124,8 +129,8 @@ func GetLocalInterface() error {
     return err
 }
 
-func routingError(dst *net.IPNet) error {
-    return fmt.Errorf("routing error: %s", dst.String())
+func routingError(dst *net.IPNet, err error) error {
+    return fmt.Errorf("routing error: %s %s", dst.String(), err)
 }
 
 func execCmd(cmdStrs []string) error {
